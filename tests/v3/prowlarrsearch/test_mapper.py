@@ -114,6 +114,35 @@ def test_invalid_http_download_falls_back_to_valid_magnet() -> None:
     assert result.enclosure == "magnet:?xt=urn:btih:fallback"
 
 
+def test_unusable_http_download_falls_back_to_relayed_http_magnet_url() -> None:
+    download_url = "https://foreign.example/1/download"
+    magnet_url = (
+        "http://prowlarr:9696/7/download?"
+        "apikey=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&link=magnet"
+    )
+    signed_url = "http://127.0.0.1:3001/api/v1/plugin/ProwlarrSearch/download/signed"
+    calls: list[object] = []
+
+    def relay_builder(value: object) -> str | None:
+        calls.append(value)
+        return signed_url if value == magnet_url else None
+
+    result = map_release(
+        {
+            "protocol": "torrent",
+            "title": "HTTP magnet fallback",
+            "downloadUrl": download_url,
+            "magnetUrl": magnet_url,
+        },
+        None,
+        relay_builder,
+    )
+
+    assert result is not None
+    assert result.enclosure == signed_url
+    assert calls == [download_url, magnet_url]
+
+
 @pytest.mark.parametrize(
     "release",
     [

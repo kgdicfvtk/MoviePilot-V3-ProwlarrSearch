@@ -42,7 +42,7 @@ qBittorrent
 
 ### GitHub Release
 
-创建 `prowlarrsearch-v1.0.0` Release，并上传构建出的 `prowlarrsearch_v1.0.0.zip`。该 ZIP 只有一个 `prowlarrsearch/` 顶层目录和五个运行时 Python 文件，供 MoviePilot 的 Release 安装链使用。
+创建 `ProwlarrSearch_v1.0.0` Release，并上传构建出的 `prowlarrsearch_v1.0.0.zip`。该 ZIP 只有一个 `prowlarrsearch/` 顶层目录和五个运行时 Python 文件，供 MoviePilot 的 Release 安装链使用。
 
 ### 本地开发仓库
 

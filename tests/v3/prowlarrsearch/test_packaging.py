@@ -85,6 +85,9 @@ def test_readme_documents_configuration_installation_scope_and_acceptance() -> N
     assert "PLUGIN_LOCAL_REPO_PATHS" in readme
     assert "第三方插件仓库" in readme
     assert "GitHub Release" in readme
+    assert "`ProwlarrSearch_v1.0.0`" in readme
+    assert "`prowlarrsearch_v1.0.0.zip`" in readme
+    assert "`prowlarrsearch-v1.0.0`" not in readme
     assert "实机验收" in readme
     for number in range(1, 10):
         assert f"{number}. " in readme

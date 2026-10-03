@@ -137,15 +137,15 @@ def _magnet_url(value: object) -> str | None:
 def _enclosure(
     release: dict[str, Any], relay_builder: Callable[[object], str | None]
 ) -> str | None:
-    download_url = release.get("downloadUrl")
-    direct_download_magnet = _magnet_url(download_url)
-    if direct_download_magnet is not None:
-        return direct_download_magnet
-    if _http_url(download_url):
-        relayed = relay_builder(download_url)
-        if isinstance(relayed, str) and relayed:
-            return relayed
-    return _magnet_url(release.get("magnetUrl"))
+    for candidate in (release.get("downloadUrl"), release.get("magnetUrl")):
+        direct_magnet = _magnet_url(candidate)
+        if direct_magnet is not None:
+            return direct_magnet
+        if _http_url(candidate):
+            relayed = relay_builder(candidate)
+            if isinstance(relayed, str) and relayed:
+                return relayed
+    return None
 
 
 def map_release(
