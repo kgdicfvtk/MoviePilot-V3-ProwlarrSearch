@@ -449,18 +449,19 @@ def test_relay_redirect_resolves_relative_location_and_keeps_same_origin_key() -
     assert final.closed is True
 
 
-def test_relay_redirect_strips_key_permanently_after_crossing_origin() -> None:
+def test_relay_redirect_preserves_query_but_strips_header_permanently() -> None:
     calls: list[dict[str, Any]] = []
+    downstream_key = TEST_KEY[::-1]
     first = FakeResponse(
         302,
         headers={
-            "Location": "https://cdn.example/file.torrent?apikey=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&part=1"
+            "Location": f"https://cdn.example/file.torrent?apikey={downstream_key}&part=1"
         },
     )
     second = FakeResponse(
         302,
         headers={
-            "Location": "http://prowlarr:9696/9/download?APIKEY=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&link=back"
+            "Location": f"http://prowlarr:9696/9/download?APIKEY={downstream_key}&link=back"
         },
     )
     final = FakeResponse(200, chunks=[b"torrent"])
@@ -474,8 +475,12 @@ def test_relay_redirect_strips_key_permanently_after_crossing_origin() -> None:
     assert calls[0]["headers"]["X-Api-Key"] == TEST_KEY
     assert "X-Api-Key" not in calls[1]["headers"]
     assert "X-Api-Key" not in calls[2]["headers"]
-    assert calls[1]["url"] == "https://cdn.example/file.torrent?part=1"
-    assert calls[2]["url"] == "http://prowlarr:9696/9/download?link=back"
+    assert calls[1]["url"] == (
+        f"https://cdn.example/file.torrent?apikey={downstream_key}&part=1"
+    )
+    assert calls[2]["url"] == (
+        f"http://prowlarr:9696/9/download?APIKEY={downstream_key}&link=back"
+    )
 
 
 def test_relay_redirect_loop_is_rejected() -> None:

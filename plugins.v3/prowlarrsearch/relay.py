@@ -115,26 +115,19 @@ def sanitize_download_url(download_url: object, base_url: str) -> str | None:
     )
 
 
-def _strip_api_key_query(url: str) -> str | None:
+def _normalize_redirect_url(url: str) -> str | None:
     parsed_parts = _parsed_http_url(url)
     if parsed_parts is None:
         return None
     parsed, port = parsed_parts
     if parsed.fragment:
         return None
-    try:
-        query_items = parse_qsl(parsed.query, keep_blank_values=True, strict_parsing=False)
-    except ValueError:
-        return None
-    clean_query = urlencode(
-        [(key, value) for key, value in query_items if key.lower() != "apikey"]
-    )
     return urlunsplit(
         (
             parsed.scheme.lower(),
             _canonical_netloc(parsed, port),
             parsed.path,
-            clean_query,
+            parsed.query,
             "",
         )
     )
@@ -279,10 +272,10 @@ class ProwlarrRelay:
         resolved = urljoin(current_url, location)
         if resolved.lower().startswith("magnet:"):
             return "magnet", resolved
-        cleaned = _strip_api_key_query(resolved)
-        if cleaned is None:
+        normalized = _normalize_redirect_url(resolved)
+        if normalized is None:
             return None
-        return "http", cleaned
+        return "http", normalized
 
     def _request_headers(self, include_key: bool) -> dict[str, str]:
         headers = {
