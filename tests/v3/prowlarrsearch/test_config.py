@@ -9,6 +9,9 @@ from app.plugins.prowlarrsearch.config import (
 )
 
 
+TEST_KEY = "TEST_PROWLARR_KEY_DO_NOT_PACKAGE"
+
+
 def test_missing_config_uses_exact_safe_defaults() -> None:
     assert normalize_config(None) == ProwlarrConfig(
         enabled=False,
@@ -65,9 +68,9 @@ def test_numeric_fields_convert_or_clamp_without_accepting_booleans(
 
 
 def test_ready_requires_enabled_valid_url_and_nonempty_key() -> None:
-    assert normalize_config({"enabled": True, "api_key": " key "}).ready is True
-    assert normalize_config({"enabled": False, "api_key": "key"}).ready is False
-    assert normalize_config({"enabled": True, "base_url": "", "api_key": "key"}).ready is False
+    assert normalize_config({"enabled": True, "api_key": f" {TEST_KEY} "}).ready is True
+    assert normalize_config({"enabled": False, "api_key": TEST_KEY}).ready is False
+    assert normalize_config({"enabled": True, "base_url": "", "api_key": TEST_KEY}).ready is False
     assert normalize_config({"enabled": True, "api_key": "   "}).ready is False
 
 

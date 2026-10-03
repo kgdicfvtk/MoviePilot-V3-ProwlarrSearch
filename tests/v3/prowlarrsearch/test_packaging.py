@@ -4,6 +4,7 @@ import ast
 import hashlib
 import importlib
 import json
+import re
 import stat
 import zipfile
 from pathlib import Path
@@ -176,8 +177,8 @@ def test_release_validator_rejects_symlink(tmp_path: Path) -> None:
     "marker",
     [
         b"TEST_PROWLARR_KEY_DO_NOT_PACKAGE",
-        b"-----BEGIN PRIVATE KEY-----",
-        b"-----BEGIN OPENSSH PRIVATE KEY-----",
+        b"-----BEGIN " + b"PRIVATE KEY-----",
+        b"-----BEGIN " + b"OPENSSH PRIVATE KEY-----",
     ],
 )
 def test_release_validator_rejects_secret_markers(tmp_path: Path, marker: bytes) -> None:
@@ -255,3 +256,60 @@ def test_secret_sentinel_is_confined_to_test_sources() -> None:
 
     for source in non_test_sources:
         assert sentinel not in source.read_text(encoding="utf-8")
+
+
+def test_source_has_no_embedded_secret_like_literals_beyond_test_sentinel() -> None:
+    sentinel = "TEST_PROWLARR_KEY_DO_NOT_PACKAGE"
+    source_files = (
+        SOURCE_ROOT / "README.md",
+        SOURCE_ROOT / "package.v3.json",
+        SOURCE_ROOT / "pyproject.toml",
+        SOURCE_ROOT / "scripts" / "build_release.py",
+        *sorted(RUNTIME_ROOT.glob("*.py")),
+        *sorted((SOURCE_ROOT / "tests").rglob("*.py")),
+    )
+    private_key_headers = (
+        "-----BEGIN " + "PRIVATE KEY-----",
+        "-----BEGIN " + "OPENSSH PRIVATE KEY-----",
+        "-----BEGIN " + "RSA PRIVATE KEY-----",
+    )
+    api_key_query = re.compile(
+        r"(?i)[?&]" + "api" + r"key=([A-Za-z0-9._:-]+)"
+    )
+
+    for source in source_files:
+        text = source.read_text(encoding="utf-8")
+        is_test = "tests" in source.relative_to(SOURCE_ROOT).parts
+        assert all(header not in text for header in private_key_headers)
+        if not is_test:
+            assert sentinel not in text
+        for match in api_key_query.finditer(text):
+            assert is_test and match.group(1) == sentinel, (
+                f"unexpected secret-like text in {source}: {match.group(0)}"
+            )
+
+        if source.suffix != ".py":
+            continue
+        tree = ast.parse(text, filename=str(source))
+        for node in ast.walk(tree):
+            name: str | None = None
+            value: ast.expr | None = None
+            if isinstance(node, ast.Assign) and len(node.targets) == 1:
+                target = node.targets[0]
+                name = target.id if isinstance(target, ast.Name) else None
+                value = node.value
+            elif isinstance(node, ast.AnnAssign):
+                name = node.target.id if isinstance(node.target, ast.Name) else None
+                value = node.value
+            elif isinstance(node, ast.keyword):
+                name = node.arg
+                value = node.value
+            if name not in {"api_key", "apikey", "token", "password"}:
+                continue
+            if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+                continue
+            if not value.value.strip():
+                continue
+            assert is_test and value.value == sentinel, (
+                f"unexpected secret-like literal in {source}: {name}"
+            )

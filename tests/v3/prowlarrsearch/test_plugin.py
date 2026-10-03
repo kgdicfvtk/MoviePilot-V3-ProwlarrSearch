@@ -62,7 +62,7 @@ def test_init_replaces_snapshot_and_api_key_rotation_invalidates_old_token() -> 
     first_relay = plugin._relay
     assert first_relay is not None
     old_enclosure = first_relay.make_enclosure(
-        f"http://prowlarr:9696/1/download?apikey={TEST_KEY}&link=x"
+        "http://prowlarr:9696/1/download?apikey=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&link=x"
     )
     assert old_enclosure is not None
     old_token = old_enclosure.rsplit("/", 1)[1]

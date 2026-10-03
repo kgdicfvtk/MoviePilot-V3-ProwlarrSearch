@@ -27,6 +27,7 @@ class MediaType(Enum):
 
 
 LOCAL_TZ = timezone(timedelta(hours=8))
+TEST_KEY = "TEST_PROWLARR_KEY_DO_NOT_PACKAGE"
 
 
 def test_complete_torrent_release_maps_every_contract_field() -> None:
@@ -40,7 +41,7 @@ def test_complete_torrent_release_maps_every_contract_field() -> None:
         "protocol": "ToRrEnT",
         "title": " Example.Release ",
         "indexer": " Example Indexer ",
-        "downloadUrl": "http://prowlarr:9696/7/download?apikey=hidden&link=x",
+        "downloadUrl": "http://prowlarr:9696/7/download?apikey=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&link=x",
         "magnetUrl": "magnet:?xt=urn:btih:fallback",
         "infoUrl": "https://indexer.example/details/7",
         "commentUrl": "https://indexer.example/comments/7",
@@ -239,7 +240,7 @@ def test_dirty_optional_fields_fall_back_without_aborting_release() -> None:
 def test_batch_isolates_one_raising_release_and_logs_only_its_position(
     captured_plugin_logs: list[tuple[str, str]],
 ) -> None:
-    secret_url = "http://prowlarr:9696/1/download?apikey=secret&link=x"
+    secret_url = "http://prowlarr:9696/1/download?apikey=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&link=x"
     releases = [
         {"protocol": "torrent", "title": "Raises", "downloadUrl": secret_url},
         {"protocol": "torrent", "title": "Good", "magnetUrl": "magnet:?xt=good"},
@@ -263,10 +264,9 @@ def test_batch_rejects_non_list_top_level(releases: object) -> None:
 
 
 def test_serialized_torrent_never_contains_key_or_literal_upstream_url() -> None:
-    key = "TEST_PROWLARR_KEY_DO_NOT_PACKAGE"
-    upstream = f"http://prowlarr:9696/5/download?apikey={key}&link=opaque"
+    upstream = "http://prowlarr:9696/5/download?apikey=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&link=opaque"
     relay = ProwlarrRelay(
-        ProwlarrConfig(True, "http://prowlarr:9696", key, 30, 100),
+        ProwlarrConfig(True, "http://prowlarr:9696", TEST_KEY, 30, 100),
         port=3001,
         clock=lambda: 1_700_000_000,
     )
@@ -285,5 +285,5 @@ def test_serialized_torrent_never_contains_key_or_literal_upstream_url() -> None
     assert result is not None
     serialized = json.dumps(result.to_dict(), ensure_ascii=False, sort_keys=True)
     assert result.enclosure.startswith("http://127.0.0.1:3001/")
-    assert key not in serialized
+    assert TEST_KEY not in serialized
     assert upstream not in serialized

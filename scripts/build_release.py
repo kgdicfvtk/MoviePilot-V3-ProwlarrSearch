@@ -19,9 +19,9 @@ FIXED_MODE = stat.S_IFREG | 0o644
 MAX_MEMBER_BYTES = 2 * 1024 * 1024
 FORBIDDEN_MARKERS = (
     b"TEST_" + b"PROWLARR_KEY_" + b"DO_NOT_PACKAGE",
-    b"-----BEGIN PRIVATE KEY-----",
-    b"-----BEGIN OPENSSH PRIVATE KEY-----",
-    b"-----BEGIN RSA PRIVATE KEY-----",
+    b"-----BEGIN " + b"PRIVATE KEY-----",
+    b"-----BEGIN " + b"OPENSSH PRIVATE KEY-----",
+    b"-----BEGIN " + b"RSA PRIVATE KEY-----",
 )
 
 

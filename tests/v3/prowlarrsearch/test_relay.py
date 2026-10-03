@@ -141,7 +141,7 @@ def _scripted_factory(
 def _relay_and_token(
     factory,
 ) -> tuple[ProwlarrRelay, str, str]:
-    upstream = f"http://prowlarr:9696/1/download?apikey={TEST_KEY}&link=first"
+    upstream = "http://prowlarr:9696/1/download?apikey=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&link=first"
     relay = ProwlarrRelay(
         _config(), port=3001, clock=lambda: NOW, request_factory=factory
     )
@@ -155,12 +155,12 @@ def _relay_and_token(
     [
         (
             "http://prowlarr:9696",
-            "http://prowlarr:9696/123/download?apikey=secret&link=abc&file=name.torrent",
+            "http://prowlarr:9696/123/download?apikey=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&link=abc&file=name.torrent",
             "http://prowlarr:9696/123/download?link=abc&file=name.torrent",
         ),
         (
             "http://host:9696/prowlarr",
-            "http://HOST:9696/prowlarr/7/download?link=a&APIKEY=one&file=b&ApiKey=two&x=3",
+            "http://HOST:9696/prowlarr/7/download?link=a&APIKEY=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&file=b&ApiKey=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&x=3",
             "http://host:9696/prowlarr/7/download?link=a&file=b&x=3",
         ),
         (
@@ -220,7 +220,7 @@ def test_target_rejects_url_base_boundary_lookalike() -> None:
 def test_token_payload_is_canonical_signed_and_has_exact_lifetime() -> None:
     upstream = (
         "http://prowlarr:9696/123/download"
-        f"?apikey={TEST_KEY}&link=opaque&file=name.torrent"
+        "?apikey=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&link=opaque&file=name.torrent"
     )
     relay = ProwlarrRelay(_config(), port=3001, clock=lambda: NOW)
 
@@ -339,7 +339,7 @@ def test_token_rejects_altered_payload_and_signature() -> None:
         },
         {
             "v": 1,
-            "u": "http://prowlarr:9696/1/download?apikey=leak&link=x",
+            "u": "http://prowlarr:9696/1/download?apikey=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&link=x",
             "iat": NOW,
             "exp": NOW + 60,
         },
@@ -357,7 +357,7 @@ def test_token_rejects_api_key_rotation_and_url_base_change() -> None:
     token = original.make_enclosure(
         "http://prowlarr:9696/1/download?link=x"
     ).rsplit("/", 1)[1]
-    rotated = ProwlarrRelay(_config(api_key="rotated-key"), port=3001, clock=lambda: NOW)
+    rotated = ProwlarrRelay(_config(api_key=TEST_KEY[::-1]), port=3001, clock=lambda: NOW)
     moved = ProwlarrRelay(
         _config(base_url="http://prowlarr:9696/prowlarr"),
         port=3001,
@@ -454,13 +454,13 @@ def test_relay_redirect_strips_key_permanently_after_crossing_origin() -> None:
     first = FakeResponse(
         302,
         headers={
-            "Location": f"https://cdn.example/file.torrent?apikey={TEST_KEY}&part=1"
+            "Location": "https://cdn.example/file.torrent?apikey=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&part=1"
         },
     )
     second = FakeResponse(
         302,
         headers={
-            "Location": f"http://prowlarr:9696/9/download?APIKEY={TEST_KEY}&link=back"
+            "Location": "http://prowlarr:9696/9/download?APIKEY=TEST_PROWLARR_KEY_DO_NOT_PACKAGE&link=back"
         },
     )
     final = FakeResponse(200, chunks=[b"torrent"])
@@ -635,9 +635,9 @@ def test_relay_network_and_http_errors_redact_all_sensitive_values(
     captured_plugin_logs: list[tuple[str, str]],
 ) -> None:
     network_calls: list[dict[str, Any]] = []
-    secret_url = f"https://downstream.example/file?apikey={TEST_KEY}"
+    secret_url = "https://downstream.example/file?apikey=TEST_PROWLARR_KEY_DO_NOT_PACKAGE"
     network_error = RuntimeError(
-        f"token=secret-token key={TEST_KEY} upstream=http://prowlarr:9696 {secret_url}"
+        "token=" + TEST_KEY + f" key={TEST_KEY} upstream=http://prowlarr:9696 {secret_url}"
     )
     network_relay, network_token, _ = _relay_and_token(
         _scripted_factory([network_error], network_calls)
