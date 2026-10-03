@@ -1,0 +1,15 @@
+{
+  "ProwlarrSearch": {
+    "name": "Prowlarr 搜索",
+    "description": "在 MoviePilot V3 搜索页中直接使用 Prowlarr 的 torrent 索引结果，不依赖 MoviePilot 官方用户认证或 IYUU。",
+    "labels": "搜索,Prowlarr",
+    "version": "1.0.0",
+    "author": "Codex",
+    "level": 1,
+    "release": true,
+    "system_version": ">=3.1.0",
+    "history": {
+      "v1.0.0": "首个版本：提供同步/异步 Prowlarr torrent 搜索、无密钥签名下载中继及配置页面。"
+    }
+  }
+}
