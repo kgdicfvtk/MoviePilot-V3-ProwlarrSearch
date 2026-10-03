@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from fastapi.responses import Response
 from app.sdk.config import settings
 from app.sdk.media import TorrentInfo
 from app.sdk.plugin import _PluginBase
@@ -47,7 +48,26 @@ class ProwlarrSearch(_PluginBase):
         return []
 
     def get_api(self) -> list[dict[str, Any]]:
-        return []
+        return [
+            {
+                "path": "/download/{token}",
+                "endpoint": self.download_relay,
+                "methods": ["GET"],
+                "summary": "下载 Prowlarr torrent",
+                "description": "使用限时签名能力安全获取 Prowlarr torrent。",
+                "allow_anonymous": True,
+            }
+        ]
+
+    def download_relay(self, token: str) -> Response:
+        if not self._config.ready or self._relay is None:
+            return Response(
+                content="Prowlarr 中继不可用",
+                status_code=503,
+                media_type="text/plain",
+                headers={"Cache-Control": "no-store"},
+            )
+        return self._relay.fetch(token)
 
     def get_module(self) -> dict[str, Any]:
         return {

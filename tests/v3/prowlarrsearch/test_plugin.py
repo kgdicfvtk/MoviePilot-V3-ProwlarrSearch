@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json
 from enum import Enum
 from typing import Any
@@ -77,11 +78,10 @@ def test_init_replaces_snapshot_and_api_key_rotation_invalidates_old_token() -> 
         plugin._relay.decode_target(old_token)
 
 
-def test_pre_relay_api_services_commands_and_stop_are_side_effect_free() -> None:
+def test_services_commands_and_stop_are_side_effect_free() -> None:
     plugin = ProwlarrSearch()
     plugin.init_plugin(_ready_config())
 
-    assert plugin.get_api() == []
     assert plugin.get_service() == []
     assert plugin.get_command() == []
 
@@ -91,6 +91,28 @@ def test_pre_relay_api_services_commands_and_stop_are_side_effect_free() -> None
     assert plugin._config.ready is False
     assert plugin._client is None
     assert plugin._relay is None
+
+
+def test_relay_api_descriptor_is_the_only_anonymous_sync_route() -> None:
+    plugin = ProwlarrSearch()
+
+    routes = plugin.get_api()
+
+    assert len(routes) == 1
+    assert routes[0]["path"] == "/download/{token}"
+    assert routes[0]["methods"] == ["GET"]
+    assert routes[0]["endpoint"] == plugin.download_relay
+    assert routes[0]["allow_anonymous"] is True
+    assert inspect.iscoroutinefunction(routes[0]["endpoint"]) is False
+
+
+def test_download_relay_returns_generic_unavailable_response_before_init() -> None:
+    plugin = ProwlarrSearch()
+
+    response = plugin.download_relay("sensitive-token")
+
+    assert response.status_code == 503
+    assert b"sensitive-token" not in response.body
 
 
 def test_module_registry_contains_only_sync_and_async_search_hooks() -> None:
