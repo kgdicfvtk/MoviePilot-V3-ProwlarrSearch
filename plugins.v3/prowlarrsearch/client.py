@@ -21,18 +21,23 @@ def _page_number(value: object) -> int:
     return 0
 
 
+def result_page_bounds(page: object, page_size: int) -> tuple[int, int]:
+    page_number = _page_number(page)
+    start = page_number * page_size
+    return start, start + page_size
+
+
 def build_search_params(
     keyword: object, mtype: Any, page: object, page_size: int
 ) -> dict[str, Any] | None:
     if not isinstance(keyword, str) or not keyword.strip():
         return None
     query = keyword.strip()
-    page_number = _page_number(page)
     return {
         "query": query,
         "type": prowlarr_search_type(mtype),
         "limit": page_size,
-        "offset": page_number * page_size,
+        "offset": 0,
     }
 
 
@@ -45,7 +50,7 @@ class ProwlarrClient:
     ) -> tuple[str, dict[str, Any]] | None:
         if not self.config.ready or self.config.base_url is None:
             return None
-        params = build_search_params(keyword, mtype, page, self.config.page_size)
+        params = build_search_params(keyword, mtype, page, self.config.candidate_limit)
         if params is None:
             return None
         return f"{self.config.base_url}/api/v1/search", params

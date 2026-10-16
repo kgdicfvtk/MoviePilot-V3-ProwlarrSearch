@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime, tzinfo
+from difflib import SequenceMatcher
+import re
 from typing import Any
+import unicodedata
 from urllib.parse import urlsplit
 
 from app.sdk.logging import logger
@@ -20,6 +23,11 @@ _SEARCH_TYPES = {
     "music": "music",
     "音乐": "music",
 }
+
+_IMDB_QUERY = re.compile(r"(?<![A-Za-z0-9])tt0*(\d+)(?!\d)", re.IGNORECASE)
+_TMDB_QUERY = re.compile(
+    r"(?<![A-Za-z0-9])tmdb(?:id)?\s*[:#-]?\s*0*(\d+)(?!\d)", re.IGNORECASE
+)
 
 
 def _media_type_key(mtype: Any) -> str | None:
@@ -101,6 +109,104 @@ def _non_negative_int(value: object) -> int:
     except (TypeError, ValueError, OverflowError):
         return 0
     return parsed if parsed >= 0 else 0
+
+
+def _normalized_text(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    normalized = unicodedata.normalize("NFKC", value).casefold()
+    return " ".join(
+        "".join(character if character.isalnum() else " " for character in normalized).split()
+    )
+
+
+def _normalized_identifier(value: object, *, imdb: bool = False) -> str | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return str(value) if value >= 0 else None
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip().casefold()
+    pattern = r"(?:tt)?0*(\d+)" if imdb else r"0*(\d+)"
+    match = re.fullmatch(pattern, candidate)
+    return match.group(1) if match else None
+
+
+def _query_identifiers(keyword: object) -> tuple[str | None, str | None]:
+    if not isinstance(keyword, str):
+        return None, None
+    imdb_match = _IMDB_QUERY.search(keyword)
+    tmdb_match = _TMDB_QUERY.search(keyword)
+    imdb_id = imdb_match.group(1) if imdb_match else None
+    tmdb_id = tmdb_match.group(1) if tmdb_match else None
+    return imdb_id, tmdb_id
+
+
+def _release_titles(release: object) -> tuple[str, ...]:
+    if not isinstance(release, dict):
+        return ()
+    titles: list[str] = []
+    for field in ("title", "sortTitle"):
+        normalized = _normalized_text(release.get(field))
+        if normalized and normalized not in titles:
+            titles.append(normalized)
+    return tuple(titles)
+
+
+def rank_releases(releases: object, keyword: object) -> list[Any]:
+    """Rank a complete Prowlarr candidate page without filtering any entry."""
+    if not isinstance(releases, list):
+        return []
+
+    query = _normalized_text(keyword)
+    query_tokens = tuple(query.split())
+    query_imdb_id, query_tmdb_id = _query_identifiers(keyword)
+
+    def score(item: tuple[int, Any]) -> tuple[int, int, int, float, int, int]:
+        index, release = item
+        titles = _release_titles(release)
+        exact_title = bool(query) and any(title == query for title in titles)
+        phrase_match = bool(query) and any(query in title for title in titles)
+        all_tokens = bool(query_tokens) and any(
+            all(token in set(title.split()) for token in query_tokens)
+            for title in titles
+        )
+        fuzzy_similarity = max(
+            (
+                SequenceMatcher(None, query, title, autojunk=False).ratio()
+                for title in titles
+                if query
+            ),
+            default=0.0,
+        )
+
+        identifier_match = False
+        if isinstance(release, dict):
+            identifier_match = (
+                query_imdb_id is not None
+                and _normalized_identifier(release.get("imdbId"), imdb=True)
+                == query_imdb_id
+            ) or (
+                query_tmdb_id is not None
+                and _normalized_identifier(release.get("tmdbId")) == query_tmdb_id
+            )
+            seeders = _non_negative_int(release.get("seeders"))
+        else:
+            seeders = 0
+
+        return (
+            int(identifier_match or exact_title),
+            int(phrase_match),
+            int(all_tokens),
+            fuzzy_similarity,
+            seeders,
+            -index,
+        )
+
+    indexed = list(enumerate(releases))
+    indexed.sort(key=score, reverse=True)
+    return [release for _, release in indexed]
 
 
 def _labels(value: object) -> list[str]:

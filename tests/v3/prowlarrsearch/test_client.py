@@ -7,7 +7,11 @@ from typing import Any
 import pytest
 
 from app.plugins.prowlarrsearch import client as client_module
-from app.plugins.prowlarrsearch.client import ProwlarrClient, build_search_params
+from app.plugins.prowlarrsearch.client import (
+    ProwlarrClient,
+    build_search_params,
+    result_page_bounds,
+)
 from app.plugins.prowlarrsearch.config import ProwlarrConfig
 
 
@@ -24,8 +28,11 @@ def _config(
     api_key: str = "TEST_PROWLARR_KEY_DO_NOT_PACKAGE",
     timeout: int = 17,
     page_size: int = 50,
+    candidate_limit: int = 500,
 ) -> ProwlarrConfig:
-    return ProwlarrConfig(enabled, base_url, api_key, timeout, page_size)
+    return ProwlarrConfig(
+        enabled, base_url, api_key, timeout, page_size, candidate_limit
+    )
 
 
 @pytest.mark.parametrize(
@@ -35,13 +42,13 @@ def _config(
             "  The Matrix  ",
             MediaType.MOVIE,
             2,
-            {"query": "The Matrix", "type": "movie", "limit": 50, "offset": 100},
+            {"query": "The Matrix", "type": "movie", "limit": 50, "offset": 0},
         ),
         (
             "Show",
             MediaType.TV,
             "3",
-            {"query": "Show", "type": "tvsearch", "limit": 50, "offset": 150},
+            {"query": "Show", "type": "tvsearch", "limit": 50, "offset": 0},
         ),
         (
             "Song",
@@ -74,6 +81,23 @@ def test_search_params_trim_and_bound_inputs(
     expected: dict[str, Any] | None,
 ) -> None:
     assert build_search_params(keyword, mtype, page, 50) == expected
+
+
+@pytest.mark.parametrize(
+    ("page", "expected"),
+    [
+        (0, (0, 25)),
+        (1, (25, 50)),
+        ("2", (50, 75)),
+        (-1, (0, 25)),
+        (True, (0, 25)),
+        ("bad", (0, 25)),
+    ],
+)
+def test_result_page_bounds_normalize_moviepilot_page_values(
+    page: object, expected: tuple[int, int]
+) -> None:
+    assert result_page_bounds(page, 25) == expected
 
 
 @pytest.mark.parametrize(
@@ -146,8 +170,8 @@ def test_sync_and_async_transports_receive_identical_contract(monkeypatch) -> No
     expected_params = {
         "query": "Show",
         "type": "tvsearch",
-        "limit": 50,
-        "offset": 100,
+        "limit": 500,
+        "offset": 0,
     }
     expected_url = "http://prowlarr:9696/prowlarr/api/v1/search"
     assert sync_result == releases

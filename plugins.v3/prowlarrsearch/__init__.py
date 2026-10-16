@@ -7,16 +7,23 @@ from app.sdk.config import settings
 from app.sdk.media import TorrentInfo
 from app.sdk.plugin import _PluginBase
 
-from .client import ProwlarrClient
-from .config import DEFAULT_BASE_URL, DEFAULT_PAGE_SIZE, DEFAULT_TIMEOUT, ProwlarrConfig, normalize_config
-from .mapper import map_releases
+from .client import ProwlarrClient, result_page_bounds
+from .config import (
+    DEFAULT_BASE_URL,
+    DEFAULT_CANDIDATE_LIMIT,
+    DEFAULT_PAGE_SIZE,
+    DEFAULT_TIMEOUT,
+    ProwlarrConfig,
+    normalize_config,
+)
+from .mapper import map_releases, rank_releases
 from .relay import ProwlarrRelay
 
 
 class ProwlarrSearch(_PluginBase):
     plugin_name = "Prowlarr 搜索"
     plugin_desc = "在 MoviePilot 搜索页中使用 Prowlarr 的 torrent 索引结果。"
-    plugin_version = "1.0.0"
+    plugin_version = "1.1.0"
     plugin_label = "搜索"
     plugin_author = "Codex"
     plugin_config_prefix = "prowlarrsearch_"
@@ -85,7 +92,10 @@ class ProwlarrSearch(_PluginBase):
         if not self._config.ready or self._client is None or self._relay is None:
             return []
         releases = self._client.search(keyword, mtype, page)
-        return map_releases(releases, mtype, self._relay.make_enclosure)
+        ranked = rank_releases(releases, keyword)
+        mapped = map_releases(ranked, mtype, self._relay.make_enclosure)
+        start, end = result_page_bounds(page, self._config.page_size)
+        return mapped[start:end]
 
     async def async_search_torrents(
         self,
@@ -97,7 +107,10 @@ class ProwlarrSearch(_PluginBase):
         if not self._config.ready or self._client is None or self._relay is None:
             return []
         releases = await self._client.async_search(keyword, mtype, page)
-        return map_releases(releases, mtype, self._relay.make_enclosure)
+        ranked = rank_releases(releases, keyword)
+        mapped = map_releases(ranked, mtype, self._relay.make_enclosure)
+        start, end = result_page_bounds(page, self._config.page_size)
+        return mapped[start:end]
 
     def get_form(self) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         return [
@@ -160,7 +173,7 @@ class ProwlarrSearch(_PluginBase):
                         "content": [
                             {
                                 "component": "VCol",
-                                "props": {"cols": 12, "md": 6},
+                                "props": {"cols": 12, "md": 4},
                                 "content": [
                                     {
                                         "component": "VTextField",
@@ -176,13 +189,29 @@ class ProwlarrSearch(_PluginBase):
                             },
                             {
                                 "component": "VCol",
-                                "props": {"cols": 12, "md": 6},
+                                "props": {"cols": 12, "md": 4},
                                 "content": [
                                     {
                                         "component": "VTextField",
                                         "props": {
                                             "model": "page_size",
-                                            "label": "每页结果数",
+                                            "label": "返回结果数",
+                                            "type": "number",
+                                            "min": 1,
+                                            "max": 1000,
+                                        },
+                                    }
+                                ],
+                            },
+                            {
+                                "component": "VCol",
+                                "props": {"cols": 12, "md": 4},
+                                "content": [
+                                    {
+                                        "component": "VTextField",
+                                        "props": {
+                                            "model": "candidate_limit",
+                                            "label": "候选池数量",
                                             "type": "number",
                                             "min": 1,
                                             "max": 1000,
@@ -211,6 +240,7 @@ class ProwlarrSearch(_PluginBase):
             "api_key": "",
             "timeout": DEFAULT_TIMEOUT,
             "page_size": DEFAULT_PAGE_SIZE,
+            "candidate_limit": DEFAULT_CANDIDATE_LIMIT,
         }
 
     def get_page(self) -> list[dict[str, Any]]:

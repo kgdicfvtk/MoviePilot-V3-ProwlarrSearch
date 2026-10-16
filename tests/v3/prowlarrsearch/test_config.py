@@ -19,6 +19,7 @@ def test_missing_config_uses_exact_safe_defaults() -> None:
         api_key="",
         timeout=30,
         page_size=100,
+        candidate_limit=500,
     )
 
 
@@ -59,12 +60,20 @@ def test_enabled_parsing_does_not_truthify_arbitrary_values(value: object, expec
         ("page_size", "bad", 100),
         ("page_size", False, 100),
         ("page_size", 10.5, 100),
+        ("candidate_limit", 1001, 1000),
+        ("candidate_limit", "bad", 500),
+        ("candidate_limit", False, 500),
+        ("candidate_limit", 10.5, 500),
     ],
 )
 def test_numeric_fields_convert_or_clamp_without_accepting_booleans(
     field: str, value: object, expected: int
 ) -> None:
     assert getattr(normalize_config({field: value}), field) == expected
+
+
+def test_candidate_pool_never_falls_below_return_page_size() -> None:
+    assert normalize_config({"page_size": 250, "candidate_limit": 1}).candidate_limit == 250
 
 
 def test_ready_requires_enabled_valid_url_and_nonempty_key() -> None:

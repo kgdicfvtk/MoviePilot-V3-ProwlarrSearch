@@ -28,6 +28,7 @@ def _ready_config(api_key: str = TEST_KEY) -> dict[str, object]:
         "api_key": api_key,
         "timeout": 15,
         "page_size": 25,
+        "candidate_limit": 300,
     }
 
 
@@ -47,7 +48,7 @@ def test_production_namespace_metadata_and_disabled_default() -> None:
 
     assert plugin_module.__name__ == "app.plugins.prowlarrsearch"
     assert plugin.plugin_name == "Prowlarr 搜索"
-    assert plugin.plugin_version == "1.0.0"
+    assert plugin.plugin_version == "1.1.0"
     assert plugin.plugin_author == "Codex"
     assert plugin.plugin_config_prefix == "prowlarrsearch_"
     assert plugin.auth_level == 1
@@ -157,20 +158,89 @@ def test_search_hooks_ignore_site_and_share_one_mapping_contract(monkeypatch) ->
     monkeypatch.setattr(plugin_module, "map_releases", fake_map)
     site = {"id": 999, "name": "must be ignored"}
 
-    sync_result = plugin.search_torrents(site, " query ", MediaType.MOVIE, 2)
+    sync_result = plugin.search_torrents(site, " query ", MediaType.MOVIE, 0)
     async_result = asyncio.run(
-        plugin.async_search_torrents(site, " query ", MediaType.MOVIE, 2)
+        plugin.async_search_torrents(site, " query ", MediaType.MOVIE, 0)
     )
 
     assert sync_result == mapped
     assert async_result == mapped
-    assert events[0] == ("sync-search", (" query ", MediaType.MOVIE, 2))
+    assert events[0] == ("sync-search", (" query ", MediaType.MOVIE, 0))
     assert events[1][0] == "map"
     assert events[1][1][:2] == (raw, MediaType.MOVIE)
     assert events[1][1][2] == fake_relay.make_enclosure
-    assert events[2] == ("async-search", (" query ", MediaType.MOVIE, 2))
+    assert events[2] == ("async-search", (" query ", MediaType.MOVIE, 0))
     assert events[3][0] == "map"
     assert all("must be ignored" not in repr(event) for event in events)
+
+
+def test_sync_and_async_hooks_rank_full_candidate_pool_before_return_limit() -> None:
+    plugin = ProwlarrSearch()
+    plugin.init_plugin(_ready_config())
+    raw = [
+        {
+            "protocol": "torrent",
+            "title": f"Unrelated.Release.{index}",
+            "magnetUrl": f"magnet:?xt=urn:btih:{index:040x}",
+            "seeders": index % 7,
+        }
+        for index in range(300)
+    ]
+    raw[249] = {
+        "protocol": "torrent",
+        "title": "Parasite.2019.1080p.BluRay",
+        "magnetUrl": "magnet:?xt=urn:btih:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "seeders": 1,
+    }
+
+    class FakeClient:
+        def search(self, keyword: object, mtype: Any = None, page: object = 0):
+            return raw
+
+        async def async_search(self, keyword: object, mtype: Any = None, page: object = 0):
+            return raw
+
+    plugin._client = FakeClient()
+
+    sync_result = plugin.search_torrents({}, "Parasite 2019", MediaType.MOVIE)
+    async_result = asyncio.run(
+        plugin.async_search_torrents({}, "Parasite 2019", MediaType.MOVIE)
+    )
+
+    assert len(sync_result) == len(async_result) == 25
+    assert sync_result[0].title == async_result[0].title == "Parasite.2019.1080p.BluRay"
+
+
+def test_requested_page_slices_the_ranked_pool_without_skipping_candidates() -> None:
+    plugin = ProwlarrSearch()
+    plugin.init_plugin(_ready_config())
+    raw = [
+        {
+            "protocol": "torrent",
+            "title": "Same Target Title",
+            "magnetUrl": f"magnet:?xt=urn:btih:{index:040x}",
+            "seeders": index,
+        }
+        for index in range(60)
+    ]
+
+    class FakeClient:
+        def search(self, keyword: object, mtype: Any = None, page: object = 0):
+            return raw
+
+        async def async_search(self, keyword: object, mtype: Any = None, page: object = 0):
+            return raw
+
+    plugin._client = FakeClient()
+
+    second_page = plugin.search_torrents({}, "Same Target Title", page=1)
+    async_second_page = asyncio.run(
+        plugin.async_search_torrents({}, "Same Target Title", page=1)
+    )
+
+    assert len(second_page) == len(async_second_page) == 25
+    assert [item.seeders for item in second_page] == list(range(34, 9, -1))
+    assert [item.seeders for item in async_second_page] == list(range(34, 9, -1))
 
 
 def test_disabled_hooks_return_empty_without_client_activity() -> None:
@@ -207,11 +277,20 @@ def test_form_has_exact_models_safe_defaults_and_password_field() -> None:
         "api_key": "",
         "timeout": 30,
         "page_size": 100,
+        "candidate_limit": 500,
     }
-    assert set(fields) == {"enabled", "base_url", "api_key", "timeout", "page_size"}
+    assert set(fields) == {
+        "enabled",
+        "base_url",
+        "api_key",
+        "timeout",
+        "page_size",
+        "candidate_limit",
+    }
     assert fields["api_key"]["type"] == "password"
     assert fields["timeout"]["type"] == "number"
     assert fields["page_size"]["type"] == "number"
+    assert fields["candidate_limit"]["type"] == "number"
 
 
 def test_status_page_shows_state_guidance_without_url_or_key() -> None:

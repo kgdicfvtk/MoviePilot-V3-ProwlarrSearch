@@ -30,9 +30,10 @@ qBittorrent
 | `base_url` | MoviePilot 容器内可访问的 Prowlarr 地址 | `http://prowlarr:9696` |
 | `api_key` | Prowlarr → Settings → General 中的 API Key | 空，密码输入框 |
 | `timeout` | 搜索和中继请求超时秒数 | `30`，限制为 `5..120` |
-| `page_size` | 每页向 Prowlarr 请求的结果数 | `100`，限制为 `1..1000` |
+| `page_size` | 排序后返回给 MoviePilot 的结果数 | `100`，限制为 `1..1000` |
+| `candidate_limit` | 每次从 Prowlarr 获取并参与相关度排序的候选数 | `500`，限制为 `1..1000`，且不会低于 `page_size` |
 
-保存后，在 MoviePilot 搜索页正常输入影片、剧集或音乐名称即可。插件会忽略 MoviePilot 的站点参数，因为 Prowlarr 是本插件唯一的数据源。
+保存后，在 MoviePilot 搜索页正常输入影片、剧集或音乐名称即可。插件会先扩大候选池，再按 IMDb/TMDB 标识符、精确标题、完整短语、全部词项、模糊相似度、做种数及 Prowlarr 原始顺序稳定排序，最后按 `page_size` 对同一排序池切页；排序不会按相似度过滤候选。插件会忽略 MoviePilot 的站点参数，因为 Prowlarr 是本插件唯一的数据源。
 
 ## 安装方式
 
@@ -42,7 +43,7 @@ qBittorrent
 
 ### GitHub Release
 
-创建 `ProwlarrSearch_v1.0.0` Release，并上传构建出的 `prowlarrsearch_v1.0.0.zip`。该 ZIP 只有一个 `prowlarrsearch/` 顶层目录和五个运行时 Python 文件，供 MoviePilot 的 Release 安装链使用。
+创建 `ProwlarrSearch_v1.1.0` Release，并上传构建出的 `prowlarrsearch_v1.1.0.zip`。该 ZIP 只有一个 `prowlarrsearch/` 顶层目录和五个运行时 Python 文件，供 MoviePilot 的 Release 安装链使用。
 
 ### 本地开发仓库
 
@@ -54,7 +55,7 @@ PLUGIN_LOCAL_REPO_PATHS=/config/local-plugins/ProwlarrSearch-MoviePilot-V3
 
 本地目录必须同时包含 `package.v3.json` 和 `plugins.v3/prowlarrsearch/`。修改后按 MoviePilot 当前开发设置重载插件。
 
-`prowlarrsearch_v1.0.0.zip` 是 GitHub Release 资产结构；除非运行中的 UI 明确提供本地 ZIP 上传功能，否则本项目不宣称当前 MoviePilot UI 可以直接上传本地 ZIP。
+`prowlarrsearch_v1.1.0.zip` 是 GitHub Release 资产结构；除非运行中的 UI 明确提供本地 ZIP 上传功能，否则本项目不宣称当前 MoviePilot UI 可以直接上传本地 ZIP。
 
 ## 安全设计
 
@@ -69,7 +70,7 @@ Prowlarr 搜索结果中的代理下载 URL 会包含明文 `apikey`。插件不
 ```text
 python -m pip install -e ".[test]"
 python -m pytest -q
-python scripts/build_release.py --output dist/prowlarrsearch_v1.0.0.zip
+python scripts/build_release.py --output dist/prowlarrsearch_v1.1.0.zip
 ```
 
 自动化测试证明配置、请求、映射、MoviePilot 插件合同、签名中继、流式上限、日志保密、清单和 ZIP 结构；它不能替代真实 Unraid 环境验收。

@@ -9,6 +9,7 @@ from urllib.parse import unquote, urlsplit, urlunsplit
 DEFAULT_BASE_URL = "http://prowlarr:9696"
 DEFAULT_TIMEOUT = 30
 DEFAULT_PAGE_SIZE = 100
+DEFAULT_CANDIDATE_LIMIT = 500
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +19,7 @@ class ProwlarrConfig:
     api_key: str
     timeout: int
     page_size: int
+    candidate_limit: int = DEFAULT_CANDIDATE_LIMIT
 
     @property
     def ready(self) -> bool:
@@ -108,6 +110,18 @@ def normalize_config(raw: Mapping[str, Any] | None) -> ProwlarrConfig:
     base_value = values["base_url"] if "base_url" in values else DEFAULT_BASE_URL
     api_key_value = values.get("api_key", "")
     api_key = api_key_value.strip() if isinstance(api_key_value, str) else ""
+    page_size = _normalize_bounded_int(
+        values.get("page_size", DEFAULT_PAGE_SIZE), DEFAULT_PAGE_SIZE, 1, 1000
+    )
+    candidate_limit = max(
+        page_size,
+        _normalize_bounded_int(
+            values.get("candidate_limit", DEFAULT_CANDIDATE_LIMIT),
+            DEFAULT_CANDIDATE_LIMIT,
+            1,
+            1000,
+        ),
+    )
     return ProwlarrConfig(
         enabled=_normalize_enabled(values.get("enabled", False)),
         base_url=normalize_base_url(base_value),
@@ -115,7 +129,6 @@ def normalize_config(raw: Mapping[str, Any] | None) -> ProwlarrConfig:
         timeout=_normalize_bounded_int(
             values.get("timeout", DEFAULT_TIMEOUT), DEFAULT_TIMEOUT, 5, 120
         ),
-        page_size=_normalize_bounded_int(
-            values.get("page_size", DEFAULT_PAGE_SIZE), DEFAULT_PAGE_SIZE, 1, 1000
-        ),
+        page_size=page_size,
+        candidate_limit=candidate_limit,
     )

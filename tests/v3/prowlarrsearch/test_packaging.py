@@ -54,10 +54,10 @@ def test_manifest_matches_runtime_identity_and_release_contract() -> None:
     assert entry["author"] == "Codex"
     assert entry["labels"] == "搜索,Prowlarr"
     assert entry["level"] == 1
-    assert entry["version"] == ProwlarrSearch.plugin_version == "1.0.0"
+    assert entry["version"] == ProwlarrSearch.plugin_version == "1.1.0"
     assert entry["system_version"] == ">=3.1.0"
     assert entry["release"] is True
-    assert set(entry["history"]) == {"v1.0.0"}
+    assert set(entry["history"]) == {"v1.0.0", "v1.1.0"}
     assert RUNTIME_ROOT.is_dir()
     assert tuple(sorted(path.name for path in RUNTIME_ROOT.glob("*.py"))) == (
         "__init__.py",
@@ -72,7 +72,14 @@ def test_readme_documents_configuration_installation_scope_and_acceptance() -> N
     readme = (SOURCE_ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "http://prowlarr:9696" in readme
-    for field in ("enabled", "base_url", "api_key", "timeout", "page_size"):
+    for field in (
+        "enabled",
+        "base_url",
+        "api_key",
+        "timeout",
+        "page_size",
+        "candidate_limit",
+    ):
         assert f"`{field}`" in readme
     assert "MoviePilot 官方用户认证" in readme
     assert "IYUU" in readme
@@ -85,9 +92,9 @@ def test_readme_documents_configuration_installation_scope_and_acceptance() -> N
     assert "PLUGIN_LOCAL_REPO_PATHS" in readme
     assert "第三方插件仓库" in readme
     assert "GitHub Release" in readme
-    assert "`ProwlarrSearch_v1.0.0`" in readme
-    assert "`prowlarrsearch_v1.0.0.zip`" in readme
-    assert "`prowlarrsearch-v1.0.0`" not in readme
+    assert "`ProwlarrSearch_v1.1.0`" in readme
+    assert "`prowlarrsearch_v1.1.0.zip`" in readme
+    assert "`prowlarrsearch-v1.1.0`" not in readme
     assert "实机验收" in readme
     for number in range(1, 10):
         assert f"{number}. " in readme
